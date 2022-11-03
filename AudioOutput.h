@@ -45,7 +45,7 @@
  *  than 16 bits). */
 #define AudioOutputStorage_t int
 
-#if IS_AVR() && ((AUDIO_MODE == STANDARD_PLUS) || (AUDIO_MODE == STANDARD))
+#if (IS_AVR() || IS_MEGAAVR()) && ((AUDIO_MODE == STANDARD_PLUS) || (AUDIO_MODE == STANDARD))
 #define SCALE_AUDIO(x,bits) (bits > 8 ? (x) >> (bits - 8) : (x) << (8 - bits))
 #define SCALE_AUDIO_NEAR(x,bits) (bits > 9 ? (x) >> (bits - 9) : (x) << (9 - bits))
 #define CLIP_AUDIO(x) constrain((x), -244,243)

@@ -7,10 +7,12 @@
 
 #define AUDIO_CHANNEL_1_PIN 9
 
-#define AUDIO_BITS 8
+#define STANDARD_PWM_RESOLUTION 488
+
+#define AUDIO_BITS 9
 #define AUDIO_BITS_PER_CHANNEL AUDIO_BITS
 
-#define AUDIO_BIAS ((uint16_t) 1<<(AUDIO_BITS-1))
+#define AUDIO_BIAS ((uint16_t) 244)
 
 #endif        //  #ifndef AUDIOCONFIGMEGAAVR_H
 

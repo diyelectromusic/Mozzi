@@ -114,36 +114,22 @@ inline void audioOutput(const AudioOutput f) {
 
   // We want an AUDIO_RATE of 16384Hz and PWM rate of 32768Hz
   //
-  // For PWM dual-slop mode, the calculation (see 20.3.3.4.4 in the ATmega4809
+  // For PWM single-slop mode, the calculation (see 20.3.3.4.3 in the ATmega4809
   // datasheet) is:
-  //    Freq = System Clock / (2 . Prescaler . PERIOD)
+  //    Freq = System Clock / (Prescaler . PERIOD)
   // 
   // So with Prescaler = DIV1 (i.e. 1) we can rearrange to get the value for
-  //    PERIOD = System Clock / (2 . Freq)
+  //    PERIOD = System Clock / Freq
   //
   // For a 32768Hz update frequency:
-  //    PERIOD = 16Mhz / 65536 = 244.14
+  //    PERIOD = 16Mhz / 32768 = 488.28
   //
-  // So the counter will run from 0 to 244 and back to 0 in dual-slope mode
-  // and the PWM duty cycle can go from 0 (0%) to 244 (100%) too.
+  // So the counter will run from 0 to 488 in single-slope mode
+  // and the PWM duty cycle can go from 0 (0%) to 488 (100%) too.
   //
-  // So for a typical 0-255 PWM value this needs scaling to 0 to 244.
-  //
-  // Calculation: scaledpwm = pwm * 256 / 244
-  //                        = pwm * 1.049
-  //
-  // But if we can make the division /256 or /128 then a simple bit-shift
-  // is pretty efficient.
-  //
-  // Now, 1.049*128 = 134, so 1.049 is ~ 134/128.
-  //
-  // So we can do pretty well with the scaling by doing a 16-bit calculation
-  // to *134 and divide by 128, which is the same as a bit shift right of 7:
-  //       pwm_16 = pwm * 134
-  //    scaledpwm = pwm_16 >> 7
-  //
-  int16_t interimF = (f.l() + AUDIO_BIAS) * 134;
-  TCA0.SINGLE.CMP0BUF = (interimF >> 7) ;
+  // So we can use the pseudo "9-bit" mode which means PWM goes 0 to 488.
+  // Then use the PWM value directly with no further scaling required.
+  TCA0.SINGLE.CMP0BUF = f.l() + AUDIO_BIAS;
 }
 #endif
 
@@ -171,9 +157,9 @@ static void startAudio() {
     
   PORTMUX.TCAROUTEA = PORTMUX_TCA0_PORTB_gc; // Enable "alternative" pin output PORTB[5:0] for TCA0
   TCA0.SINGLE.CTRLA = TCA_SINGLE_CLKSEL_DIV1_gc | TCA_SINGLE_ENABLE_bm;  // SysClk and enabled
-  TCA0.SINGLE.CTRLB = TCA_SINGLE_CMP0EN_bm | TCA_SINGLE_WGMODE_DSTOP_gc;
+  TCA0.SINGLE.CTRLB = TCA_SINGLE_CMP0EN_bm | TCA_SINGLE_WGMODE_SINGLESLOPE_gc;
   TCA0.SINGLE.CTRLD = 0; // Normal (Single) mode (not split)
-  TCA0.SINGLE.PER = 244; // 32768 Hz "tick"
+  TCA0.SINGLE.PER = 488; // 32768 Hz "tick"
   TCA0.SINGLE.CMP0 = 0;
 
   TCA0.SINGLE.INTCTRL |= TCA_SINGLE_OVF_bm;  // Turn on interrupts

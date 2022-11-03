@@ -12,7 +12,8 @@
 - Compiler protection against typos
 - Easy to extend for new but compatible boards */
 
-#define IS_AVR() (defined(__AVR__))  // "Classic" Arduino boards
+#define IS_MEGAAVR() (defined(ARDUINO_ARCH_MEGAAVR)) // Arduino Nano Every board using the Arduino megaAVR core
+#define IS_AVR() (defined(__AVR__) && !IS_MEGAAVR())  // "Classic" Arduino boards
 #define IS_SAMD21() (defined(ARDUINO_ARCH_SAMD))
 #define IS_TEENSY3() (defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__) || defined(__MKL26Z64__))  // 32bit arm-based Teensy
 #define IS_TEENSY4() (defined(__IMXRT1062__)) // Teensy4 (no DAC)
@@ -21,7 +22,7 @@
 #define IS_ESP32() (defined(ESP32))
 #define IS_RP2040() (defined(ARDUINO_ARCH_RP2040))
 
-#if !(IS_AVR() || IS_TEENSY3() || IS_TEENSY4() || IS_STM32() || IS_ESP8266() || IS_SAMD21() || IS_ESP32() || IS_RP2040())
+#if !(IS_AVR() || IS_TEENSY3() || IS_TEENSY4() || IS_STM32() || IS_ESP8266() || IS_SAMD21() || IS_ESP32() || IS_RP2040() || IS_MEGAAVR())
 #error Your hardware is not supported by Mozzi or not recognized. Edit hardware_defines.h to proceed.
 #endif
 

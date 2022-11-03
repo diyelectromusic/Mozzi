@@ -30,7 +30,8 @@
 // TB2012 changed preScale array to suit Timer0
 
 // Added by TB2014 for Mozzi library, to hide code from Teensy 3.1
-#if defined (__AVR__)
+#include "hardware_defines.h"
+#if IS_AVR()
 
 #include <avr/pgmspace.h>
 #include <avr/interrupt.h>

@@ -45,10 +45,17 @@
  *  than 16 bits). */
 #define AudioOutputStorage_t int
 
-#if (IS_AVR() || IS_MEGAAVR()) && ((AUDIO_MODE == STANDARD_PLUS) || (AUDIO_MODE == STANDARD))
+#if IS_AVR() && ((AUDIO_MODE == STANDARD_PLUS) || (AUDIO_MODE == STANDARD))
 #define SCALE_AUDIO(x,bits) (bits > 8 ? (x) >> (bits - 8) : (x) << (8 - bits))
 #define SCALE_AUDIO_NEAR(x,bits) (bits > 9 ? (x) >> (bits - 9) : (x) << (9 - bits))
 #define CLIP_AUDIO(x) constrain((x), -244,243)
+#elif  IS_MEGAAVR()  && ((AUDIO_MODE == STANDARD_PLUS) || (AUDIO_MODE == STANDARD))
+/** megaAVR can support the AVR's "8.5" bit mode in some configurations (AUDIO_BITS=9)
+  * or just normal 8-bit mode in others (AUDIO_BITS=8).
+  */
+#define SCALE_AUDIO(x,bits) (bits > AUDIO_BITS ? (x) >> (bits - AUDIO_BITS) : (x) << (AUDIO_BITS - bits))
+#define SCALE_AUDIO_NEAR(x,bits) (bits > AUDIO_BITS_NEAR ? (x) >> (bits - AUDIO_BITS_NEAR) : (x) << (AUDIO_BITS_NEAR - bits))
+#define CLIP_AUDIO(x) constrain((x), (-(AudioOutputStorage_t) AUDIO_BIAS), (AudioOutputStorage_t) AUDIO_BIAS-1)
 #else
 #define SCALE_AUDIO(x,bits) (bits > AUDIO_BITS ? (x) >> (bits - AUDIO_BITS) : (x) << (AUDIO_BITS - bits))
 #define SCALE_AUDIO_NEAR(x,bits) SCALE_AUDIO(x,bits)

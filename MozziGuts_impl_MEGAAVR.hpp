@@ -104,6 +104,9 @@ void stm32_adc_eoc_handler() {
  * running smoothly. */
 //#define LOOP_YIELD yield();
 
+// Required for Timer B use only
+#define CCMPL_TOP 243
+
 #if (EXTERNAL_AUDIO_OUTPUT != true) // otherwise, the last stage - audioOutput() - will be provided by the user
 /** NOTE: This is the function that actually write a sample to the output. In case of EXTERNAL_AUDIO_OUTPUT == true, it is provided by the library user, instead. */
 inline void audioOutput(const AudioOutput f) {
@@ -112,6 +115,7 @@ inline void audioOutput(const AudioOutput f) {
   // e.g. analogWrite(AUDIO_CHANNEL_2_PIN, f.r()+AUDIO_BIAS);
 #endif
 
+#if (AUDIO_CHANNEL_1_PIN==9)
   // We want an AUDIO_RATE of 16384Hz and PWM rate of 32768Hz
   //
   // For PWM single-slop mode, the calculation (see 20.3.3.4.3 in the ATmega4809
@@ -130,11 +134,45 @@ inline void audioOutput(const AudioOutput f) {
   // So we can use the pseudo "9-bit" mode which means PWM goes 0 to 488.
   // Then use the PWM value directly with no further scaling required.
   TCA0.SINGLE.CMP0BUF = f.l() + AUDIO_BIAS;
+#elif (AUDIO_CHANNEL_1_PIN==3)
+  // We want an AUDIO_RATE of 16384Hz but PWM rate is 65536Hz
+  //
+  // For 8-bit PWM mode, the calculation (see 21.3.3.1.8 in the ATmega4809
+  // datasheet) is:
+  //    Freq = System Clock / (Prescaler . (PERIOD + 1))
+  // 
+  // So with Prescaler = DIV1 (i.e. 1) we can rearrange to get the value for
+  //    PERIOD + 1 = System Clock / Freq
+  //
+  // For a 32768Hz update frequency:
+  //    PERIOD + 1 = 16Mhz / 32768 = 488 which is too high.
+  //
+  // So for a 65536Hz update frequency:
+  //    PERIOD + 1 = 16MHz / 65536 = 244
+  //    PERIOD     = 243
+  //
+  // To maintain an AUDIO_RATE of 16384, we need to only perform
+  // audio updates for 1 in 4 interrupts.
+  //
+  // So the counter will run from 0 to 243 and the PWM duty cycle
+  //  can go from 0 (0%) to 243 (100%) too.
+  //
+  // So for a typical 0-255 PWM value this needs scaling to 0 to 244.
+  //
+  // Calculation: scaledpwm = pwm * 244 / 256
+  //                        = (pwm * 244) >> 8
+  //
+  uint16_t interimF = (f.l() + AUDIO_BIAS) * 244;
+  TCB1.CCMPL = CCMPL_TOP;
+  TCB1.CCMPH = (interimF >> 8);
+#endif
 }
 #endif
 
+#if (AUDIO_CHANNEL_1_PIN==9)
 ISR(TCA0_OVF_vect, ISR_BLOCK) {
   TCA0.SINGLE.INTFLAGS = TCA_SINGLE_OVF_bm; // Clear the interrupt flag
+
 #if (AUDIO_RATE == 16384) // only update every second ISR, if lower audio rate
   static boolean alternate;
   alternate = !alternate;
@@ -143,6 +181,27 @@ ISR(TCA0_OVF_vect, ISR_BLOCK) {
 
   defaultAudioOutput();
 }
+
+#elif (AUDIO_CHANNEL_1_PIN==3)
+ISR(TCB1_INT_vect, ISR_BLOCK) {
+  TCB1.INTFLAGS = TCB_CAPT_bm; // Clear the interrupt flag
+
+#if (AUDIO_RATE == 16384) // only update every fourth ISR, if lower audio rate
+  static uint8_t alternate;
+  alternate++;
+  if (alternate < 4) {
+    return;
+  }
+  alternate = 0;    
+#elif (AUDIO_RATE == 32768) // only update every second ISR
+  static boolean alternate;
+  alternate = !alternate;
+  if (alternate) return;
+#endif
+
+  defaultAudioOutput();
+}
+#endif
 
 
 static void startAudio() {
@@ -155,14 +214,26 @@ static void startAudio() {
     
   pinMode(AUDIO_CHANNEL_1_PIN, OUTPUT);
     
+#if (AUDIO_CHANNEL_1_PIN==9)
+  // Configure Timer A for use with D9 (PB0)
   PORTMUX.TCAROUTEA = PORTMUX_TCA0_PORTB_gc; // Enable "alternative" pin output PORTB[5:0] for TCA0
   TCA0.SINGLE.CTRLA = TCA_SINGLE_CLKSEL_DIV1_gc | TCA_SINGLE_ENABLE_bm;  // SysClk and enabled
   TCA0.SINGLE.CTRLB = TCA_SINGLE_CMP0EN_bm | TCA_SINGLE_WGMODE_SINGLESLOPE_gc;
   TCA0.SINGLE.CTRLD = 0; // Normal (Single) mode (not split)
-  TCA0.SINGLE.PER = 488; // 32768 Hz "tick"
+  TCA0.SINGLE.PER = 487; // 32768 Hz "tick"
   TCA0.SINGLE.CMP0 = 0;
 
   TCA0.SINGLE.INTCTRL |= TCA_SINGLE_OVF_bm;  // Turn on interrupts
+#elif (AUDIO_CHANNEL_1_PIN==3)
+  // Configure Timer B1 for use with D3 (PF5)
+  PORTMUX.TCBROUTEA |= PORTMUX_TCB1_bm; // Enable "alternative" pin output (PF5=D3) for TCB1
+  TCB1.CTRLA = TCB_CLKSEL_CLKDIV1_gc | TCB_ENABLE_bm;  // SysClk and enabled
+  TCB1.CTRLB = TCB_CNTMODE_PWM8_gc | TCB_CCMPEN_bm;    // 8-bit PWM and output enabled
+  TCB1.CCMPL = CCMPL_TOP;
+  TCB1.CCMPH = 0;
+
+  TCB1.INTCTRL |= TCB_CAPT_bm;  // Turn on interrupts
+#endif
 #endif
 }
 
